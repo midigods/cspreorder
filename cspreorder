@@ -1,0 +1,289 @@
+#!/usr/bin/python
+
+import plistlib
+import string
+
+import optparse
+import sys
+import os
+import shutil
+
+print '\n'
+parser = optparse.OptionParser(usage='%prog -r "0 1 2 3 4 5 - -, 8 9 10 11 - - - -"',version='1.0')
+parser.add_option('-i', action="store_true", default=False, help="display instructions")
+parser.add_option('-d', action="store_true", default=False, help="list the DEFAULT parameters order")
+parser.add_option('-a', action="store_true", default=False, help="list the ACTIVE parameters order")
+parser.add_option('-r', action="store", default=None, metavar="input", help="REORDER the plugin parameters")
+parser.add_option('-c', action="store_true", default=False, help="optimize parameter order for Mackie C4")
+parser.add_option('-v', action="store_true", default=False, help="copy CSParameterOrder.plist to CSParameterOrder.plist.default")
+parser.add_option('-w', action="store", default=None, metavar="number", help="cutomize the column width of cspreorder output")
+parser.add_option('-s', action="store_true", default=False, help="show parameter ID in Active and Reorder mode")
+parser.add_option('-p', action="store", default=None, metavar="path", help="supply the PATH to plugin directory")
+#parser.add_option('-l', action="callback", callback=printDefaultParams help="List the default order of parameters")
+options, args = parser.parse_args()
+
+listDefault = options.d
+listActive = options.a
+userInput = options.r
+customWidth = options.w
+c4mode = options.c
+displayInstructions = options.i
+showId = options.s
+pluginPath = options.p
+copyPlist = options.v
+
+
+def getColWidth(customWidth):
+    if customWidth is not None:
+        colWidth = int(customWidth)
+    elif customWidth is None:
+        termRows, termColumns = os.popen('stty size', 'r').read().split()
+        termColumns = int(termColumns)
+        colWidth = termColumns / 9
+    return colWidth
+    
+def getParamsPagesDetails(paramList):
+    numParams = len(paramList)
+    numPages = int(numParams / 8)
+    lastPageCnt = numParams % 8
+    return numParams, numPages, lastPageCnt
+    
+def genHeaderLabels():
+    headerBase = 'ch'
+    headerCols = 8
+    headerCounter = 1
+    headerLabels = []
+    while headerCounter <= headerCols:
+        headerLabel = '%s %s' % (headerBase, headerCounter)
+        headerLabels.append(headerLabel)
+        headerCounter = headerCounter + 1
+    return headerLabels
+    
+def spreadParamList(paramList):
+    if c4mode:
+        if len(paramList) <= 16:
+            spreadList = []
+            for param in paramList:
+                spreadList.append(param)
+                spreadList.append('-')
+            paramList = spreadList
+    else:
+        if len(paramList) <= 4:
+            spreadList = []
+            for param in paramList:
+                spreadList.append(param)
+                spreadList.append('-')
+            paramList = spreadList
+    return paramList
+        
+def adjustParamList(paramList, lastPageCnt):
+    if lastPageCnt > 0:
+        paramsToAdd = 8 - lastPageCnt
+        paramCounter = 1
+        while paramCounter <= paramsToAdd:
+            paramList.append('-')
+            paramCounter = paramCounter+1
+    return paramList
+
+def getParamList(plistFile):
+    defaultFile = plistlib.readPlist(plistFile)
+    paramList = defaultFile['ControlSurfaceParameterOrder']
+    if listDefault:
+        paramList = spreadParamList(paramList)
+    return paramList
+        
+def getStringPair(paramList):
+    stringPair = []
+    for string in paramList:
+        stringSplit = string.split(' ',1)
+        stringPair.append(stringSplit)
+    return stringPair
+    
+def addBlankParamToDict(stringDict,blankNumStr):
+    blankNumStrValue = '-'
+    stringDict[blankNumStr] = blankNumStrValue
+    return stringDict
+    
+def genNewParamList(stringDict,blankNumStr):
+    modifiedList = []
+    pageSplit = userInput.split(',')
+    for page in pageSplit:
+        page = page.strip()
+        pageList = page.split()
+        numParams = len(pageList)
+        if numParams > 8:
+            print 'You have too many parameters in "%s" page\n' % (' '.join(pageList))
+            sys.exit()
+        while numParams < 8:
+            pageList.append('-')
+            numParams = numParams + 1
+        modifiedList.extend(pageList)
+
+    if c4mode:
+        lenParamList = len(modifiedList)
+        modParamList = (lenParamList % 32)
+        paramCounter = modParamList
+        if modParamList:
+            numParams = (32 - (modParamList))
+            while numParams > 0:
+                modifiedList.append('-')
+                numParams = (numParams -1)        
+
+    newParamList = []
+    for param in modifiedList:
+        if param is '-':
+            param = blankNumStr
+        paramStr = '%s %s' % (param, stringDict[param])
+        newParamList.append(paramStr)
+    return newParamList
+    
+def genPageLabels(numPages, lastPageCnt):
+    pageBase = 'page'
+    pageLabels = []
+    listCounter = 1
+    if lastPageCnt > 0:
+        numPages = numPages + 1
+    while listCounter <= numPages:
+        pageLabels.append('%s %s ' % (pageBase,listCounter))
+        listCounter = listCounter + 1
+    return pageLabels
+    
+
+def formatTable(paramList,numParams,numPages,lastPageCnt,pageLabels,headerLabels,colWidth):
+    headerLabelsList = []
+    for headerLabel in headerLabels:
+        headLabelCentered = headerLabel.center(colWidth, ' ')
+        headerLabelsList.append(headLabelCentered)    
+    lenHeaderSpace = len(pageLabels[len(pageLabels)-1])
+    headerSpace = "".ljust(lenHeaderSpace," ")
+    headerLabelsList.insert(0, headerSpace)
+    headerFormatted = "|".join(headerLabelsList)
+    print headerFormatted
+    
+    lenHeader = len(headerFormatted)
+    doubleLine = "".ljust(lenHeader, '=')
+    singleLine = "".ljust(lenHeader, '-')
+    print doubleLine
+
+    pageCounter = 0
+    paramCounter = 0
+    paramEnd = 8
+    
+    while pageCounter < numPages:
+        pageParamsList = []
+        while paramCounter < paramEnd:
+            param = paramList[paramCounter]
+            param = param[0:colWidth]
+            param = param.ljust(colWidth, ' ')
+            pageParamsList.append(param)
+            paramCounter = paramCounter+1
+        pageParamsList = '%s|%s' % (pageLabels[pageCounter], "|".join(pageParamsList))
+        print pageParamsList
+        pageCounter = pageCounter+1
+        if c4mode and ((pageCounter % 4) == 0):
+            print doubleLine
+        else:
+            print singleLine
+#        pageCounter = pageCounter+1
+        paramEnd = paramEnd + 8
+    
+def printTable(plistFile,colWidth):
+    paramList = getParamList(plistFile)
+    if listDefault or showId:
+        paramList = paramsWithColon(paramList)
+    if (listActive or userInput) and not showId:
+        paramList = hideParamId(paramList)
+    _, _, lastPageCnt = getParamsPagesDetails(paramList)
+    paramList = adjustParamList(paramList, lastPageCnt)
+    numParams, numPages, lastPageCnt = getParamsPagesDetails(paramList)
+    headerLabels = genHeaderLabels()
+    pageLabels = genPageLabels(numPages, lastPageCnt)
+    formatTable(paramList,numParams,numPages,lastPageCnt,pageLabels,headerLabels,colWidth)
+    print '\n'
+    
+def updateParamList(plistDefault):
+    paramList = getParamList(plistDefault)
+    stringPair = getStringPair(paramList)
+    stringDict = dict(stringPair)      
+    numKeys = len(stringDict)
+    blankNumStr = str(numKeys)
+    addBlankParamToDict(stringDict,blankNumStr) # do I need to assign this to stringDict ?
+    updatedParamList = genNewParamList(stringDict,blankNumStr)
+    return updatedParamList
+    
+def writeUpdateToFile(updatedParamList):
+    updatedPlistDict = {}
+    updatedPlistDict['ControlSurfaceParameterOrder'] = updatedParamList
+    output_file = "CSParameterOrder.plist"
+    plistlib.writePlist(updatedPlistDict, output_file)
+    
+def hideParamId(paramList):
+    paramListNoId = []
+    for param in paramList:
+        paramSplit = param.split(' ', 1)
+        paramNoId = paramSplit[1]
+        paramListNoId.append(paramNoId)
+    return paramListNoId
+    
+def paramsWithColon(paramList):
+    paramListWithColon = []
+    for param in paramList:
+        paramSplit = param.split(' ', 1)
+        paramWithColon = '%s:%s' % (paramSplit[0],paramSplit[1])
+        paramListWithColon.append(paramWithColon)
+    return paramListWithColon
+
+def getFullPath(pluginPath):
+    plistDefault = 'CSParameterOrder.plist.default'
+    plistActive = 'CSParameterOrder.plist'
+    if pluginPath:
+        plistDefault = os.path.join(pluginPath,plistDefault)
+        plistActive = os.path.join(pluginPath,plistActive)
+    return plistDefault, plistActive
+        
+def fileCheck(file):
+    if not (os.path.exists(file)):
+        print 'The file "%s" is needed to use this script.\n' % file
+        sys.exit()
+        
+def copyFile(plistActive, plistDefault):
+    if (os.path.exists(plistDefault)):
+        print 'The file "%s" already exists!\n' % plistDefault
+        sys.exit()
+    else:
+        print 'Copying "%s" to "%s"\n' % (plistActive, plistDefault)
+        shutil.copy(plistActive, plistDefault)
+        
+def main():
+
+    colWidth = getColWidth(customWidth)
+    plistDefault, plistActive = getFullPath(pluginPath)
+    pluginName = os.path.basename(os.path.dirname(os.path.realpath(plistDefault)))
+    
+    if copyPlist:
+        fileCheck(plistActive)
+        copyFile(plistActive, plistDefault)
+
+    if listDefault:
+        fileCheck(plistDefault)
+        print 'Below is the DEFAULT parameters order for the plugin "%s":\n' % pluginName
+        printTable(plistDefault,colWidth)
+    
+    if listActive:
+        fileCheck(plistActive)
+        print 'Below is the ACTIVE parameters order for the plugin "%s":\n' % pluginName
+        printTable(plistActive,colWidth)
+
+    if userInput:
+        fileCheck(plistDefault)
+        updatedParamList = updateParamList(plistDefault)
+        writeUpdateToFile(updatedParamList)
+        print 'Below is the NEW parameters order for the plugin "%s":\n' % pluginName
+        printTable(plistActive,colWidth)
+
+    if displayInstructions:
+        print '## cspreorder Instructions ##\n\nThis script is intended to speed up the process of reordering Logic Pro control surface parameters. It is easy to use if you are already familiar with running commands in the OS X Terminal application, but I believe that any Logic Pro user could utilize it after learning a few basic steps.\n\n1. Create a CSParameterOrder.plist file for the plugin.\n\nOpen the plugin in Logic and save a patch and name it "#default" (without the quotes). To use this script to reorder a plugin\'s control surface parameters, you need to create a CSParameterOrder.plist file. This should create a CSParameterOrder.plist file in the plugin\'s blah directory. Note: I use Logic Pro 9, and I have to repeat this step and overwrite the first "#default" patch before Logic creates the CSParameterOrder.plist file.\n\n2. Copy the CSParameterOrder.plist file and name it CSParameterOrder.plist.default (in the same directory). This script will not work if you do not have a valid CSParameterOrder.plist.default file.\n\n3. Navigate to the plugin directory in a terminal window.\n\n4. Run the desired cspreorder command:\n\n* To view the DEFAULT parameter names/IDs and order, use the following command:\n  cspreorder -d\n\n* To view the ACTIVE parameter names and order, use the following command:\n  cspreorder -a\n\n* To reorder the plugin parameters, use the following command syntax:\n  cspreorder -r "1 2 3 4 - - - -, 5 6 7 8 - - - -"\n\n* To reorder the plugin parameters for a c4 controller, use the following command syntax:\n  cspreorder -c -r "1 2 3 4 - - - -, 5 6 7 8 - - - -"\n\n* To customize the width of columns, use the -w option:\n  cspreorder -a -w 15\n\n* To show the parameter ID in ACTIVE or REORDER mode, use the -s option:\n  cspreorder -a -s\n\n* To copy the CSParameterOrder.plist file to CSParameterOrder.plist.default, use the -v option:\n  cspreorder -v\n'
+
+
+if __name__ == '__main__':
+   main()

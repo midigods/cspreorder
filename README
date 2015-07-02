@@ -1,0 +1,37 @@
+
+## cspreorder Instructions ##
+
+This script is intended to speed up the process of reordering Logic Pro control surface parameters. It is easy to use if you are already familiar with running commands in the OS X Terminal application, but I believe that any Logic Pro user could utilize it after learning a few basic steps. 
+
+1. Create a CSParameterOrder.plist file for the plugin.
+
+Open the plugin in Logic and save a patch and name it "#default" (without the quotes). To use this script to reorder a plugin's control surface parameters, you need to create a CSParameterOrder.plist file. This should create a CSParameterOrder.plist file in the plugin's blah directory. Note: I use Logic Pro 9, and I have to repeat this step and overwrite the first "#default" patch before Logic creates the CSParameterOrder.plist file.
+
+2. Copy the CSParameterOrder.plist file and name it CSParameterOrder.plist.default (in the same directory). This script will not work if you do not have a valid CSParameterOrder.plist.default file.
+
+3. Navigate to the plugin directory in a terminal window.
+
+4. Run the desired cspreorder command:
+
+* To view the DEFAULT parameter names/IDs and order, use the following command:
+  cspreorder -d
+
+* To view the ACTIVE parameter names and order, use the following command:
+  cspreorder -a
+
+* To reorder the plugin parameters, use the following command syntax:
+  cspreorder -r "1 2 3 4 - - - -, 5 6 7 8 - - - -"
+
+* To reorder the plugin parameters for a c4 controller, use the following command syntax:
+  cspreorder -c -r "1 2 3 4 - - - -, 5 6 7 8 - - - -"
+
+* To customize the width of columns, use the -w option:
+  cspreorder -a -w
+
+* To show the parameter ID in ACTIVE or REORDER mode, use the -s option:
+  cspreorder -a -s
+
+* To copy the CSParameterOrder.plist file to CSParameterOrder.plist.default, use the -v option:
+  cspreorder -v
+
+
