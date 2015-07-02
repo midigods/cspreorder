@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ControlSurfaceParameterOrder</key>
+	<array>
+		<string>0 Level A</string>
+		<string>1 Treble A</string>
+		<string>2 Bass A</string>
+		<string>3 Level B</string>
+		<string>4 Treble B</string>
+		<string>5 Bass B</string>
+		<string>6 Level C</string>
+		<string>7 Treble C</string>
+		<string>8 Bass C</string>
+	</array>
+</dict>
+</plist>
